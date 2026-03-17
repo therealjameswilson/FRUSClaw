@@ -21,7 +21,10 @@ def build_index(config: AppConfig) -> IndexSummary:
     """Rebuild the local SQLite index from FRUS TEI XML volumes."""
     config.ensure_directories()
     if not config.volumes_dir.exists():
-        raise RuntimeError(f"FRUS volumes directory not found: {config.volumes_dir}")
+        raise RuntimeError(
+            f"FRUS volumes directory not found at {config.volumes_dir}. "
+            "Run `frusclaw sync` first."
+        )
 
     database = IndexDatabase(config.db_path)
     database.initialize()

@@ -1,0 +1,5 @@
+# FRUSClaw local agent configuration
+[agent]
+mode = "research"
+allowed_users = []
+scheduler_interval_seconds = 30

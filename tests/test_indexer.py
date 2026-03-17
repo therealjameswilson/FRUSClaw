@@ -5,6 +5,9 @@ from __future__ import annotations
 import sqlite3
 from pathlib import Path
 
+from typer.testing import CliRunner
+
+from frusclaw_cli.main import app
 from frusclaw_indexer.config import AppConfig
 from frusclaw_indexer.indexer import build_index
 from frusclaw_indexer.parser import parse_volume_file
@@ -34,6 +37,9 @@ SAMPLE_TEI = """\
   </text>
 </TEI>
 """
+
+
+runner = CliRunner()
 
 
 def test_parse_volume_file_extracts_basic_fields(tmp_path: Path) -> None:
@@ -80,6 +86,29 @@ def test_search_documents_finds_keyword_hits(tmp_path: Path) -> None:
     assert len(results) == 1
     assert results[0].document_id == "doc-1"
     assert "Berlin crisis" in results[0].snippet
+
+
+def test_index_command_reports_missing_volumes_directory(tmp_path: Path) -> None:
+    data_dir = tmp_path / ".frusclaw"
+    repo_dir = data_dir / "frus"
+    repo_dir.mkdir(parents=True)
+    db_path = data_dir / "frusclaw.sqlite3"
+
+    result = runner.invoke(
+        app,
+        [
+            "index",
+            "--data-dir",
+            str(data_dir),
+            "--repo-dir",
+            str(repo_dir),
+            "--db-path",
+            str(db_path),
+        ],
+    )
+
+    assert result.exit_code == 1
+    assert "Run `frusclaw sync` first." in result.stderr
 
 
 def _build_config(tmp_path: Path) -> AppConfig:

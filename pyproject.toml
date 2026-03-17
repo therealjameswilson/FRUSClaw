@@ -30,4 +30,4 @@ frusclaw = "frusclaw_cli.main:app"
 testpaths = ["tests"]
 
 [tool.setuptools]
-packages = ["frusclaw_cli", "frusclaw_indexer"]
+packages = ["frusclaw_cli", "frusclaw_indexer", "frusclaw_agent", "frusclaw_agent.channels"]

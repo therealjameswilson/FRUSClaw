@@ -19,6 +19,27 @@ class SearchResult:
     source_path: str
 
 
+@dataclass(slots=True)
+class DocumentRecord:
+    """Indexed FRUS document record."""
+
+    document_id: str
+    volume_id: str
+    volume_title: str
+    headings: str
+    plain_text: str
+    source_path: str
+
+
+@dataclass(slots=True)
+class VolumeRecord:
+    """Indexed FRUS volume record."""
+
+    volume_id: str
+    title: str
+    source_path: str
+
+
 def search_documents(db_path: Path, query: str, limit: int = 10) -> list[SearchResult]:
     """Search indexed headings and plain text using simple keyword matching."""
     terms = [term.strip().lower() for term in query.split() if term.strip()]
@@ -62,6 +83,63 @@ def search_documents(db_path: Path, query: str, limit: int = 10) -> list[SearchR
         )
         for row in rows
     ]
+
+
+def fetch_document(db_path: Path, document_id: str) -> DocumentRecord | None:
+    """Return one indexed document by ID."""
+    with sqlite3.connect(db_path) as connection:
+        row = connection.execute(
+            """
+            SELECT document_id, volume_id, volume_title, headings, plain_text, source_path
+            FROM documents
+            WHERE document_id = ?
+            """,
+            (document_id,),
+        ).fetchone()
+    if row is None:
+        return None
+    return DocumentRecord(*row)
+
+
+def fetch_volume(db_path: Path, volume_id: str) -> VolumeRecord | None:
+    """Return one indexed volume by ID."""
+    with sqlite3.connect(db_path) as connection:
+        row = connection.execute(
+            "SELECT volume_id, title, source_path FROM volumes WHERE volume_id = ?",
+            (volume_id,),
+        ).fetchone()
+    if row is None:
+        return None
+    return VolumeRecord(*row)
+
+
+def fetch_volume_documents(db_path: Path, volume_id: str, limit: int = 25) -> list[DocumentRecord]:
+    """Return indexed documents for one volume."""
+    with sqlite3.connect(db_path) as connection:
+        rows = connection.execute(
+            """
+            SELECT document_id, volume_id, volume_title, headings, plain_text, source_path
+            FROM documents
+            WHERE volume_id = ?
+            ORDER BY document_id
+            LIMIT ?
+            """,
+            (volume_id, limit),
+        ).fetchall()
+    return [DocumentRecord(*row) for row in rows]
+
+
+def resolve_history_state_url(db_path: Path, identifier: str) -> str | None:
+    """Best-effort FRUS URL resolution for a volume or document identifier."""
+    document = fetch_document(db_path, identifier)
+    if document is not None:
+        return f"https://history.state.gov/historicaldocuments/{document.volume_id}#{document.document_id}"
+
+    volume = fetch_volume(db_path, identifier)
+    if volume is not None:
+        return f"https://history.state.gov/historicaldocuments/{volume.volume_id}"
+
+    return None
 
 
 def _build_snippet(text: str, terms: list[str], max_length: int = 160) -> str:
