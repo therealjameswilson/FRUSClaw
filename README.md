@@ -4,23 +4,27 @@ FRUSClaw is a local-first research assistant for the Foreign Relations of the Un
 
 While you work, FRUSClaw is in the archives.
 
-This repository is the first scaffold for a Python-based indexing and retrieval system. The current goal is to establish a clean, modular foundation for:
+This repository now includes the first working local indexing and search path for FRUS TEI XML volumes, while staying entirely local and without any OpenClaw integration yet. The current goal is to keep the foundation clean and modular for:
 
-- FRUS TEI XML ingestion
+- FRUS TEI XML ingestion from the FRUS repository
 - Local SQLite indexing
-- Search and document lookup workflows
+- Keyword search and document lookup workflows
 - Future OpenClaw integration
 
 ## Current Status
 
-This phase intentionally scaffolds the project without implementing a full ingestion or search pipeline yet. The CLI commands are placeholders wired for future expansion, and the indexer package includes minimal TEI parsing and SQLite-ready storage helpers.
+This phase implements a minimal working pipeline:
+
+- `frusclaw sync` prepares a local data directory and clones or updates the FRUS source repository
+- `frusclaw index` parses FRUS TEI XML files from `volumes/` and writes normalized records into SQLite
+- `frusclaw search "query"` performs simple local keyword search across document headings and plain text
 
 ## Project Layout
 
 ```text
 frusclaw_cli/       Typer-based command-line interface
-frusclaw_indexer/   Parsing and indexing foundations
-tests/              Pytest smoke tests
+frusclaw_indexer/   Config, sync, parsing, indexing, search, and rendering
+tests/              Parser, index, and search tests
 ```
 
 ## Quick Start
@@ -32,30 +36,67 @@ tests/              Pytest smoke tests
 pip install -e .[dev]
 ```
 
-3. Explore the CLI:
+3. Prepare local FRUS data:
 
 ```bash
-frusclaw --help
-frusclaw init
+frusclaw sync
+```
+
+4. Build the SQLite index:
+
+```bash
+frusclaw index
+```
+
+5. Search locally:
+
+```bash
+frusclaw search "berlin"
+frusclaw search "arms control"
+```
+
+6. Inspect local status:
+
+```bash
 frusclaw stats
 ```
 
-4. Run tests:
+7. Run tests:
 
 ```bash
 pytest
 ```
 
-## Phase 1 Scope
+## Local Configuration
 
-- Minimal Typer CLI with placeholder commands
-- Parser module prepared for FRUS TEI XML ingestion using `lxml`
-- SQLite-ready indexing layer
-- Basic CLI smoke tests
+By default, FRUSClaw keeps its local state in `.frusclaw/` under the current working directory:
+
+```text
+.frusclaw/
+  frus/            Local clone of the FRUS repository
+  frusclaw.sqlite3 Local SQLite index
+```
+
+You can override the defaults per command:
+
+```bash
+frusclaw sync --data-dir /tmp/frus-data
+frusclaw index --repo-dir /path/to/frus --db-path /tmp/frus.db
+frusclaw search "summit" --db-path /tmp/frus.db
+```
+
+## Current Scope
+
+- Python 3.11+ only
+- Local FRUS repository sync via Git
+- TEI XML parsing from `volumes/`
+- SQLite indexing for volumes and documents
+- Keyword search over headings and plain text
+- Parser, indexing, and search tests
 
 ## Phase 2 Direction
 
-- Implement FRUS volume discovery and synchronization
-- Ingest TEI XML into normalized SQLite tables
-- Add real search, document retrieval, and volume inspection
-- Connect FRUSClaw to OpenClaw entry points
+- Improve TEI extraction fidelity for more FRUS document structures
+- Add document and volume detail commands against the SQLite index
+- Add incremental indexing and better search ranking
+- Connect FRUSClaw to OpenClaw entry points later

@@ -6,7 +6,12 @@ from pathlib import Path
 
 import typer
 
+from frusclaw_indexer.config import AppConfig
 from frusclaw_indexer.database import IndexDatabase
+from frusclaw_indexer.git_ops import ensure_frus_repository
+from frusclaw_indexer.indexer import build_index
+from frusclaw_indexer.render import render_search_results, render_stats
+from frusclaw_indexer.search import search_documents
 
 app = typer.Typer(
     help="Local-first research assistant for the FRUS series.",
@@ -19,32 +24,70 @@ def _placeholder(command_name: str, detail: str) -> None:
     typer.echo(f"{command_name}: {detail}")
 
 
+def _config_options(
+    data_dir: Path | None = None,
+    repo_dir: Path | None = None,
+    db_path: Path | None = None,
+) -> AppConfig:
+    """Resolve command configuration from explicit paths or defaults."""
+    return AppConfig.from_paths(data_dir=data_dir, repo_dir=repo_dir, db_path=db_path)
+
+
 @app.command()
-def init(db_path: Path = Path("frusclaw.sqlite3")) -> None:
+def init(
+    data_dir: Path | None = typer.Option(None, help="Base directory for local FRUSClaw data."),
+    repo_dir: Path | None = typer.Option(None, help="Path to the local FRUS Git clone."),
+    db_path: Path | None = typer.Option(None, help="Path to the local SQLite database."),
+) -> None:
     """Initialize a local FRUSClaw workspace."""
-    database = IndexDatabase(db_path)
-    database.initialize()
-    _placeholder("init", f"initialized local index at {db_path}")
+    config = _config_options(data_dir=data_dir, repo_dir=repo_dir, db_path=db_path)
+    config.ensure_directories()
+    IndexDatabase(config.db_path).initialize()
+    typer.echo(f"init: data directory={config.data_dir}")
+    typer.echo(f"init: repository path={config.repo_dir}")
+    typer.echo(f"init: database path={config.db_path}")
 
 
 @app.command()
-def sync() -> None:
-    """Placeholder for future FRUS source synchronization."""
-    # TODO: Connect this command to the future OpenClaw-backed sync workflow.
-    _placeholder("sync", "source synchronization is not implemented yet")
+def sync(
+    data_dir: Path | None = typer.Option(None, help="Base directory for local FRUSClaw data."),
+    repo_dir: Path | None = typer.Option(None, help="Path to the local FRUS Git clone."),
+    db_path: Path | None = typer.Option(None, help="Path to the local SQLite database."),
+) -> None:
+    """Prepare local FRUS data and sync the FRUS repository."""
+    config = _config_options(data_dir=data_dir, repo_dir=repo_dir, db_path=db_path)
+    result = ensure_frus_repository(config)
+    typer.echo(f"sync: data directory={config.data_dir}")
+    typer.echo(f"sync: repository path={result.repo_path}")
+    typer.echo(f"sync: action={result.action}")
 
 
 @app.command()
-def index(source: Path | None = None) -> None:
-    """Placeholder for future indexing of FRUS source material."""
-    target = source or Path(".")
-    _placeholder("index", f"indexing pipeline is not implemented yet for {target}")
+def index(
+    data_dir: Path | None = typer.Option(None, help="Base directory for local FRUSClaw data."),
+    repo_dir: Path | None = typer.Option(None, help="Path to the local FRUS Git clone."),
+    db_path: Path | None = typer.Option(None, help="Path to the local SQLite database."),
+) -> None:
+    """Parse FRUS TEI volumes and populate the local SQLite index."""
+    config = _config_options(data_dir=data_dir, repo_dir=repo_dir, db_path=db_path)
+    summary = build_index(config)
+    typer.echo(f"index: volumes indexed={summary.volume_count}")
+    typer.echo(f"index: documents indexed={summary.document_count}")
+    typer.echo(f"index: database path={config.db_path}")
 
 
 @app.command()
-def search(query: str) -> None:
-    """Placeholder for future full-text and metadata search."""
-    _placeholder("search", f"search is not implemented yet for query={query!r}")
+def search(
+    query: str,
+    data_dir: Path | None = typer.Option(None, help="Base directory for local FRUSClaw data."),
+    repo_dir: Path | None = typer.Option(None, help="Path to the local FRUS Git clone."),
+    db_path: Path | None = typer.Option(None, help="Path to the local SQLite database."),
+    limit: int = typer.Option(10, min=1, max=100, help="Maximum number of search results."),
+) -> None:
+    """Search headings and full text in the local SQLite index."""
+    config = _config_options(data_dir=data_dir, repo_dir=repo_dir, db_path=db_path)
+    results = search_documents(config.db_path, query=query, limit=limit)
+    typer.echo(render_search_results(results))
 
 
 @app.command("doc")
@@ -69,11 +112,14 @@ def resolve_url(identifier: str) -> None:
 
 
 @app.command()
-def stats(db_path: Path = Path("frusclaw.sqlite3")) -> None:
+def stats(
+    data_dir: Path | None = typer.Option(None, help="Base directory for local FRUSClaw data."),
+    repo_dir: Path | None = typer.Option(None, help="Path to the local FRUS Git clone."),
+    db_path: Path | None = typer.Option(None, help="Path to the local SQLite database."),
+) -> None:
     """Show basic local index information."""
-    database = IndexDatabase(db_path)
-    typer.echo(f"stats: database path={db_path}")
-    typer.echo(f"stats: database exists={database.exists()}")
+    config = _config_options(data_dir=data_dir, repo_dir=repo_dir, db_path=db_path)
+    typer.echo(render_stats(config))
 
 
 if __name__ == "__main__":
